@@ -27,5 +27,10 @@ Usage
 | `--ouput_path` | The output path to save the resulted media          |
 | `--overwrite`  | Of overwrite the existing images in the output path |
 
-Example:\
->python.exe main.py --input_path C:\whatsapp_images_path -ouput_path C:\output_path
+Usage:
+
+```
+main.py [-h] --input_path INPUT_PATH --output_path OUTPUT_PATH [--overwrite]
+
+the following arguments are required: --input_path, --output_path
+```
