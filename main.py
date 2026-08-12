@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from datetime import datetime
 import logging
 import os
 import re
@@ -28,6 +29,7 @@ class File:
     new_file_path: str = ''
     extension: str = ''
     parsed_date: str = ''
+    last_modified_date: datetime | None = None
     exif_bytes: bytes = b''
 
     def __repr__(self):
@@ -42,6 +44,7 @@ def parse_arguments():
     parser.add_argument('--output_path', help='New Whatsapp Images and videos path to scan', required=True)
     parser.add_argument('--recursive', action='store_true', help='Run recursively in the provided folder')
     parser.add_argument('--overwrite', action='store_true', help='Overwrite existing files in the output path')
+    parser.add_argument('--experimental' or '--exp', action='store_true', help='Overwrite existing files in the output path')
     args = parser.parse_args()
 
     if not args:
@@ -83,6 +86,8 @@ def export_exif_data(file: File):
         if exif_data:
             data = piexif.load(exif_data).get('Exif')
 
+        file.last_modified_date = get_last_modified_date(f)
+
     return data
 
 
@@ -103,9 +108,16 @@ def check_exif(file: File):
                     if match:
                         logger.info(f'Found exif data')
                         return True
+
                 except UnicodeDecodeError:
                     continue
     return False
+
+def get_last_modified_date(file):
+    """ This function is for extracting last date modification from EXIF data """
+    return datetime.fromtimestamp(
+        os.fstat(file.fileno()).st_mtime
+    )
 
 
 def parse_filename_to_date(file):
@@ -130,15 +142,29 @@ def parse_filename_to_date(file):
 
 def new_image_exif_data(file):
     exif_dict = {'Exif': {}}
+    parsed_datetime = datetime.strptime(
+        file.parsed_date,
+        '%Y:%m:%d %H:%M:%S'
+    )
     date_time = f"{file.parsed_date} 00:00:00"  # Add a default time
+
+    if (
+            file.last_modified_date is not None
+            and file.last_modified_date.date() == parsed_datetime.date()
+    ):
+        date_time = file.last_modified_date.strftime('%Y:%m:%d %H:%M:%S')
+    else:
+        date_time = file.parsed_date
+
     exif_dict['Exif'] = {
         piexif.ExifIFD.DateTimeOriginal: date_time.encode('utf-8'),
-        piexif.ExifIFD.DateTimeDigitized: date_time.encode('utf-8')
+        piexif.ExifIFD.DateTimeDigitized: date_time.encode('utf-8'),
     }
+
     logger.info(f'New exif data: {exif_dict}')
-    exif_bytes = piexif.dump(exif_dict)
-    file.exif_bytes = exif_bytes
-    return file, exif_bytes
+    file.exif_bytes = piexif.dump(exif_dict)
+
+    return file, file.exif_bytes
 
 
 def save_exif_data(file, img, output_path, overwrite):
