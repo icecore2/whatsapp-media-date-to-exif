@@ -13,7 +13,7 @@ import argparse
 from dataclasses import dataclass
 
 # Parse format: YYYYMMDD
-REGEX_FILENAME_DATE = r'(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})'
+REGEX_FILENAME_DATE = r'(?<!\d)(?P<year>\d{4})-?(?P<month>\d{2})-?(?P<day>\d{2})(?!\d)'
 REGEX_EXIF_DATE = r'((\d{4}):(\d{2}):(\d{2}))'
 REGEX_EXIF_TIME = r'((\d{2}):(\d{2}):(\d{2}))'
 FILES_EXT = ['jpeg', 'jpg', 'mp4']
@@ -29,6 +29,7 @@ class File:
     new_file_path: str = ''
     extension: str = ''
     parsed_date: str = ''
+    has_filename_time: bool = False
     last_modified_date: datetime | None = None
     exif_bytes: bytes = b''
 
@@ -104,7 +105,7 @@ def check_exif(file: File):
             if isinstance(value, bytes):
                 try:
                     decoded_value = value.decode('utf-8')
-                    match = re.search(re.compile(REGEX_FILENAME_DATE), decoded_value)
+                    match = re.search(REGEX_EXIF_DATE, decoded_value)
                     if match:
                         logger.info(f'Found exif data')
                         return True
@@ -122,6 +123,8 @@ def get_last_modified_date(file):
 
 def parse_filename_to_date(file):
     """ Parse and return date and time from the filename. """
+    file.parsed_date = ''
+    file.has_filename_time = False
     date_match = re.search(REGEX_FILENAME_DATE, file.filename)
     time_match = re.search(r'at (\d{2})\.(\d{2})\.(\d{2})', file.filename)
     
@@ -135,7 +138,12 @@ def parse_filename_to_date(file):
         else:
             time_str = "00:00:00"
         
-        file.parsed_date = f"{date_str} {time_str}"
+        try:
+            parsed_datetime = datetime.strptime(f"{date_str} {time_str}", '%Y:%m:%d %H:%M:%S')
+        except ValueError:
+            return file
+        file.parsed_date = parsed_datetime.strftime('%Y:%m:%d %H:%M:%S')
+        file.has_filename_time = time_match is not None
         logger.info(f'Parsed date and time from filename: {file.parsed_date}')
     
     return file
@@ -146,10 +154,11 @@ def new_image_exif_data(file):
         file.parsed_date,
         '%Y:%m:%d %H:%M:%S'
     )
-    date_time = f"{file.parsed_date} 00:00:00"  # Add a default time
+    date_time = file.parsed_date
 
     if (
-            file.last_modified_date is not None
+            not file.has_filename_time
+            and file.last_modified_date is not None
             and file.last_modified_date.date() == parsed_datetime.date()
     ):
         date_time = file.last_modified_date.strftime('%Y:%m:%d %H:%M:%S')
@@ -188,7 +197,7 @@ def save_exif_data(file, img, output_path, overwrite):
     file.new_file_path = new_file_path
     logger.info(f"'{file.new_file_path}' saved successfully")
     
-    assert check_exif(file), "New file doesn't have exif data."
+    assert check_exif(File(file_path=file.new_file_path)), "New file doesn't have exif data."
 
     return file
 
@@ -220,7 +229,8 @@ def process_file(file, args, spinner):
         return
 
     file = parse_filename_to_date(file=file)
-    if file.parsed_date is None:
+    if not file.parsed_date:
+        im.close()
         return
 
     file, exif = new_image_exif_data(file=file)
