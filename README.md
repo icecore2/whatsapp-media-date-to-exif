@@ -9,7 +9,11 @@ WhatsApp photos are stored with sent date information in their filenames. This s
 
 ## Features
 - Parses WhatsApp filename date information
-- Supports phone filenames such as `IMG-20260831-WA0005.jpg` and WhatsApp Web filenames such as `WhatsApp Image 2026-08-31 at 15.41.14.jpeg`, including duplicate suffixes like ` (1)`.
+- Supports phone filenames such as:
+    - `IMG-YYYYMMDD-WA0005.jpg` (phone)
+    - `WhatsApp Image YYYY-MM-DD at HH.MM.SS.jpeg` (WhatsApp Web)
+    - `IMG-20170909-161055.jpg` or `IMG-20170909-161055911.jpg` (compact timestamp); both use `2017:09:09 16:10:55`, ignoring the optional trailing three digits.
+    - Duplicate suffixes like ` (1)`. For example, `IMG-YYYYMMDD-WA0005 (1).jpg`
 - Uses the explicit filename time when available. For date-only filenames, uses the file modification time when its calendar date matches; otherwise uses midnight. Invalid dates and unrecognized filenames are skipped.
 - Saves parsed date as EXIF data in image files
 - Supports both images and videos

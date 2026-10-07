@@ -127,6 +127,14 @@ def parse_filename_to_date(file):
     file.has_filename_time = False
     date_match = re.search(REGEX_FILENAME_DATE, file.filename)
     time_match = re.search(r'at (\d{2})\.(\d{2})\.(\d{2})', file.filename)
+    compact_time_match = re.fullmatch(
+        r'IMG-\d{8}-(\d{2})(\d{2})(\d{2})(?:\d{3})?\.[^.]+',
+        file.filename
+    )
+    if compact_time_match:
+        time_match = compact_time_match
+    elif re.match(r'IMG-\d{8}-\d', file.filename):
+        return file
     
     if date_match:
         date_dict = date_match.groupdict()
